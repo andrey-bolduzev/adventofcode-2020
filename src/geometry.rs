@@ -42,7 +42,7 @@ pub fn intersect(a: Line, b: Line) -> Option<Point> {
     let t =
         (s2_x * (p0.y - p2.y) as f32 - s2_y * (p0.x - p2.x) as f32) / (-s2_x * s1_y + s1_x * s2_y);
 
-    if s >= 0.0 && s <= 1.0 && t >= 0.0 && t <= 1.0 {
+    if (0.0..=1.0).contains(&s) && t >= 0.0 && t <= 1.0 {
         // round the results so errors line up nicely
         Some(Point::new(
             p0.x + (t * s1_x).round() as i32,
@@ -285,7 +285,7 @@ impl FromStr for Vector3 {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let captures = VEC3_RE.captures(s).ok_or(format!("no regex match"))?;
+        let captures = VEC3_RE.captures(s).ok_or("no regex match")?;
         Ok(Vector3 {
             x: captures
                 .name("x")
@@ -352,7 +352,7 @@ pub struct Map<T: Clone> {
 impl<T: Clone + Default> Map<T> {
     pub fn new(width: usize, height: usize) -> Map<T> {
         Map {
-            tiles: vec![T::default(); width * height].into(),
+            tiles: vec![T::default(); width * height],
             width,
             height,
         }
@@ -471,6 +471,7 @@ where
     //
     // That doesn't stop us from doing it here, and implementing the official trait for
     // a few concrete types
+    #[allow(clippy::try_err)]
     fn try_from<R>(input: R) -> Result<Self, MapConversionErr<T>>
     where
         R: std::io::BufRead,
@@ -590,7 +591,7 @@ impl<T: Clone + Into<char>> fmt::Display for Map<T> {
             for x in 0..self.width {
                 write!(f, "{}", self[(x, y)].clone().into())?;
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
         Ok(())
     }
@@ -745,10 +746,8 @@ impl<T: Clone + ContextInto<Traversable>> Map<T> {
 
             visited.set(idx(point), true);
             let traversable = self[point].clone().ctx_into(context);
-            if traversable != Traversable::Obstructed {
-                if visit(&self[point], point) {
-                    break;
-                }
+            if traversable != Traversable::Obstructed && visit(&self[point], point) {
+                break;
             }
 
             if traversable == Traversable::Free {

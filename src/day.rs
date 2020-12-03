@@ -10,6 +10,7 @@ use crate::config::Config;
 const EXPECT_PACKAGE: &str = env!("CARGO_PKG_NAME");
 
 /// ensure we're in the correct directory by verifying the package name in `Cargo.toml`
+#[allow(clippy::try_err)]
 fn ensure_correct_dir(current_dir: &Path) -> Result<(PathBuf, Document), Error> {
     // parse the local Cargo.toml to discover if we're in the right place
     let cargo_toml_path = current_dir.join("Cargo.toml");
@@ -38,6 +39,7 @@ fn ensure_correct_dir(current_dir: &Path) -> Result<(PathBuf, Document), Error> 
     Ok((cargo_toml_path, manifest))
 }
 
+#[allow(clippy::try_err)]
 fn add_crate_to_workspace(
     cargo_toml_path: &Path,
     manifest: &mut Document,
@@ -64,11 +66,13 @@ fn add_crate_to_workspace(
         .as_array_mut()
         .ok_or(Error::MalformedToml)?;
 
-    if members.iter().any(|item| {
+    let already_exists = members.iter().any(|item| {
         item.as_str()
             .map(|item_str| item_str == crate_name)
             .unwrap_or_default()
-    }) {
+    });
+
+    if already_exists {
         Err(Error::CrateAlreadyExists(crate_name.to_string()))?;
     }
 
