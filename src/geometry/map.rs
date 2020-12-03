@@ -1,352 +1,120 @@
+use crate::geometry::{Direction, Point};
 use bitvec::bitvec;
-use lazy_static::lazy_static;
-use regex::Regex;
 use std::collections::{BinaryHeap, HashMap, VecDeque};
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
-use std::ops::{Add, AddAssign, Div, Index, IndexMut, Mul, Sub};
-use std::str::FromStr;
-
-pub fn follow(traces: &[Trace]) -> Vec<Line> {
-    let mut cursor = Point::new(0, 0);
-    let mut out = Vec::with_capacity(traces.len());
-    for trace in traces {
-        let prev = cursor;
-        use Direction::*;
-        let (val, mul) = match trace.direction {
-            Right => (&mut cursor.x, 1),
-            Left => (&mut cursor.x, -1),
-            Up => (&mut cursor.y, 1),
-            Down => (&mut cursor.y, -1),
-        };
-        *val += trace.distance * mul;
-        out.push(Line::new(prev, cursor));
-    }
-    out
-}
-
-// https://stackoverflow.com/a/1968345/504550
-pub fn intersect(a: Line, b: Line) -> Option<Point> {
-    let p0 = a.from;
-    let p1 = a.to;
-    let p2 = b.from;
-    let p3 = b.to;
-
-    let s1_x = (p1.x - p0.x) as f32;
-    let s1_y = (p1.y - p0.y) as f32;
-    let s2_x = (p3.x - p2.x) as f32;
-    let s2_y = (p3.y - p2.y) as f32;
-
-    let s =
-        (-s1_y * (p0.x - p2.x) as f32 + s1_x * (p0.y - p2.y) as f32) / (-s2_x * s1_y + s1_x * s2_y);
-    let t =
-        (s2_x * (p0.y - p2.y) as f32 - s2_y * (p0.x - p2.x) as f32) / (-s2_x * s1_y + s1_x * s2_y);
-
-    if (0.0..=1.0).contains(&s) && t >= 0.0 && t <= 1.0 {
-        // round the results so errors line up nicely
-        Some(Point::new(
-            p0.x + (t * s1_x).round() as i32,
-            p0.y + (t * s1_y).round() as i32,
-        ))
-    } else {
-        None
-    }
-}
-
-pub fn intersections_naive(ap: &[Line], bp: &[Line]) -> Vec<Point> {
-    let mut isects = Vec::new();
-    for a in ap {
-        for b in bp {
-            if let Some(isect) = intersect(*a, *b) {
-                isects.push(isect);
-            }
-        }
-    }
-    isects
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Direction {
-    Right,
-    Left,
-    Up,
-    Down,
-}
-
-impl Direction {
-    /// (dx, dy), for Right is +x and Up is +y
-    pub fn deltas(self) -> (i32, i32) {
-        use Direction::*;
-        match self {
-            Up => (0, 1),
-            Down => (0, -1),
-            Right => (1, 0),
-            Left => (-1, 0),
-        }
-    }
-
-    pub fn turn_right(self) -> Direction {
-        use Direction::*;
-        match self {
-            Up => Self::Right,
-            Right => Self::Down,
-            Down => Self::Left,
-            Left => Self::Up,
-        }
-    }
-
-    pub fn turn_left(self) -> Direction {
-        use Direction::*;
-        match self {
-            Up => Self::Left,
-            Left => Self::Down,
-            Down => Self::Right,
-            Right => Self::Up,
-        }
-    }
-
-    pub fn iter() -> impl Iterator<Item = Direction> {
-        use Direction::*;
-        [Up, Down, Left, Right].iter().cloned()
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Trace {
-    direction: Direction,
-    distance: i32,
-}
-
-impl FromStr for Trace {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() < 2 {
-            return Err("len < 2".into());
-        }
-        let direction = match s.as_bytes()[0] {
-            b'R' | b'r' => Direction::Right,
-            b'L' | b'l' => Direction::Left,
-            b'U' | b'u' => Direction::Up,
-            b'D' | b'd' => Direction::Down,
-            unknown => return Err(format!("unknown direction: {}", unknown as char)),
-        };
-        let distance = s[1..]
-            .parse()
-            .map_err(|e: std::num::ParseIntError| e.to_string())?;
-        Ok(Trace {
-            direction,
-            distance,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Point {
-    pub x: i32,
-    pub y: i32,
-}
-
-impl Point {
-    pub const fn new(x: i32, y: i32) -> Point {
-        Point { x, y }
-    }
-
-    // on my machine, passing self by copy and reference are equally sized,
-    // and passing by copy breaks the cleanest usage of this function in Iterator::map,
-    // so I'm going to retain the reference behavior. I expect the compiler to
-    // inline this function anyway.
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    pub fn manhattan(&self) -> i32 {
-        self.x.abs() + self.y.abs()
-    }
-
-    pub fn abs(&self) -> Point {
-        Point {
-            x: self.x.abs(),
-            y: self.y.abs(),
-        }
-    }
-}
-
-impl From<(usize, usize)> for Point {
-    fn from((x, y): (usize, usize)) -> Self {
-        Self::new(
-            i32::try_from(x).unwrap_or(i32::MAX),
-            i32::try_from(y).unwrap_or(i32::MAX),
-        )
-    }
-}
-
-impl Add for Point {
-    type Output = Point;
-
-    fn add(self, other: Point) -> Point {
-        Point {
-            x: self.x + other.x,
-            y: self.y + other.y,
-        }
-    }
-}
-
-impl Add<(i32, i32)> for Point {
-    type Output = Point;
-
-    fn add(self, (dx, dy): (i32, i32)) -> Point {
-        Point {
-            x: self.x + dx,
-            y: self.y + dy,
-        }
-    }
-}
-
-impl Add<Direction> for Point {
-    type Output = Point;
-
-    fn add(self, direction: Direction) -> Point {
-        self + direction.deltas()
-    }
-}
-
-impl Sub for Point {
-    type Output = Point;
-
-    fn sub(self, other: Point) -> Point {
-        Point {
-            x: self.x - other.x,
-            y: self.y - other.y,
-        }
-    }
-}
-
-impl Mul<i32> for Point {
-    type Output = Point;
-
-    fn mul(self, other: i32) -> Point {
-        Point {
-            x: self.x * other,
-            y: self.y * other,
-        }
-    }
-}
-
-impl Div<i32> for Point {
-    type Output = Point;
-
-    fn div(self, other: i32) -> Point {
-        Point {
-            x: self.x / other,
-            y: self.y / other,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Line {
-    pub from: Point,
-    pub to: Point,
-}
-
-impl Line {
-    pub fn new(from: Point, to: Point) -> Line {
-        Line { from, to }
-    }
-
-    pub fn manhattan_len(&self) -> i32 {
-        (self.to - self.from).manhattan()
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct Vector3 {
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
-}
-
-impl Vector3 {
-    pub fn new(x: i32, y: i32, z: i32) -> Vector3 {
-        Vector3 { x, y, z }
-    }
-
-    pub fn abs_sum(&self) -> i32 {
-        self.x.abs() + self.y.abs() + self.z.abs()
-    }
-}
-
-lazy_static! {
-    static ref VEC3_RE: Regex = Regex::new(
-        r"(?i)<\s*(x=\s*)?(?P<x>-?\d+),\s*(y=\s*)?(?P<y>-?\d+),\s*(z=\s*)?(?P<z>-?\d+)\s*>"
-    )
-    .unwrap();
-}
-
-impl FromStr for Vector3 {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let captures = VEC3_RE.captures(s).ok_or("no regex match")?;
-        Ok(Vector3 {
-            x: captures
-                .name("x")
-                .unwrap()
-                .as_str()
-                .parse()
-                .map_err(|err| format!("x: {}", err))?,
-            y: captures
-                .name("y")
-                .unwrap()
-                .as_str()
-                .parse()
-                .map_err(|err| format!("y: {}", err))?,
-            z: captures
-                .name("z")
-                .unwrap()
-                .as_str()
-                .parse()
-                .map_err(|err| format!("z: {}", err))?,
-        })
-    }
-}
-
-impl fmt::Display for Vector3 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<x={:3}, y={:3}, z={:3}>", self.x, self.y, self.z)
-    }
-}
-
-impl AddAssign for Vector3 {
-    fn add_assign(&mut self, other: Self) {
-        self.x += other.x;
-        self.y += other.y;
-        self.z += other.z;
-    }
-}
-
-impl Add for Vector3 {
-    type Output = Vector3;
-
-    fn add(self, other: Self) -> Self {
-        Vector3 {
-            x: self.x + other.x,
-            y: self.y + other.y,
-            z: self.z + other.z,
-        }
-    }
-}
+use std::ops::{Index, IndexMut};
 
 /// A Map keeps track of a tile grid.
 ///
 /// Its coordinate system assumes that the origin is in the lower left,
-/// for compatibility with Direction.
+/// for compatibility with [`Direction`].
 ///
 /// While it is possible to clone a map, it is generally safe to assume that doing so
 /// is a sign that there's a better approach possible.
+///
+/// ## Entry Points
+///
+/// - [`Map::new`] is most useful when the problem involves cartography.
+/// - When a map is provided as the day's input, use `Map::try_from(path)`
 #[derive(Clone, Default)]
-pub struct Map<T: Clone> {
+pub struct Map<T> {
     tiles: Vec<T>,
     width: usize,
     height: usize,
+}
+
+impl<T> Map<T> {
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    pub fn bottom_left(&self) -> Point {
+        Point::new(0, 0)
+    }
+
+    pub fn top_left(&self) -> Point {
+        Point::new(0, self.height.try_into().unwrap_or(i32::MAX) - 1)
+    }
+
+    pub fn bottom_right(&self) -> Point {
+        Point::new(self.width.try_into().unwrap_or(i32::MAX) - 1, 0)
+    }
+
+    pub fn top_right(&self) -> Point {
+        Point::new(
+            self.width.try_into().unwrap_or(i32::MAX) - 1,
+            self.height.try_into().unwrap_or(i32::MAX) - 1,
+        )
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.tiles.iter()
+    }
+
+    pub fn for_each<F>(&self, visit: F)
+    where
+        F: FnMut(&T),
+    {
+        self.tiles.iter().for_each(visit);
+    }
+
+    pub fn for_each_mut<F>(&mut self, update: F)
+    where
+        F: FnMut(&mut T),
+    {
+        self.tiles.iter_mut().for_each(update);
+    }
+
+    pub fn for_each_point<F>(&self, mut visit: F)
+    where
+        F: FnMut(&T, Point),
+    {
+        self.tiles
+            .iter()
+            .enumerate()
+            .for_each(|(idx, tile)| visit(tile, self.index2point(idx).into()));
+    }
+
+    pub fn for_each_point_mut<F>(&mut self, mut update: F)
+    where
+        F: FnMut(&mut T, Point),
+    {
+        let index2point = self.make_index2point();
+        self.tiles
+            .iter_mut()
+            .enumerate()
+            .for_each(|(idx, tile)| update(tile, index2point(idx).into()));
+    }
+
+    pub fn in_bounds(&self, point: Point) -> bool {
+        point.x >= 0
+            && point.y >= 0
+            && point.x < self.width.try_into().unwrap_or(i32::MAX)
+            && point.y < self.height.try_into().unwrap_or(i32::MAX)
+    }
+
+    /// convert a 2d point into a 1d index into the tiles
+    #[inline]
+    fn point2index(&self, x: usize, y: usize) -> usize {
+        x + (y * self.width)
+    }
+
+    /// convert a 1d index in the tiles into a 2d point
+    #[inline]
+    fn index2point(&self, idx: usize) -> (usize, usize) {
+        (idx % self.width, idx / self.width)
+    }
+
+    /// make a function which converts a 1d index in the tiles into a 2d point without borrowing self
+    fn make_index2point(&self) -> impl Fn(usize) -> (usize, usize) {
+        let width = self.width;
+        move |idx: usize| (idx % width, idx / width)
+    }
 }
 
 impl<T: Clone + Default> Map<T> {
@@ -359,13 +127,7 @@ impl<T: Clone + Default> Map<T> {
     }
 }
 
-impl<T: Clone> Map<T> {
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.tiles.iter()
-    }
-}
-
-impl<T: Clone + std::hash::Hash> std::hash::Hash for Map<T> {
+impl<T: std::hash::Hash> std::hash::Hash for Map<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.tiles.hash(state);
         self.width.hash(state);
@@ -373,13 +135,13 @@ impl<T: Clone + std::hash::Hash> std::hash::Hash for Map<T> {
     }
 }
 
-impl<T: Clone + PartialEq> PartialEq for Map<T> {
+impl<T: PartialEq> PartialEq for Map<T> {
     fn eq(&self, other: &Self) -> bool {
         self.width == other.width && self.height == other.height && self.tiles == other.tiles
     }
 }
 
-impl<T: Clone + Eq> Eq for Map<T> {}
+impl<T: Eq> Eq for Map<T> {}
 
 impl<T, R> From<&[R]> for Map<T>
 where
@@ -462,15 +224,19 @@ where
     T: Clone + TryFrom<char>,
     <T as TryFrom<char>>::Error: std::fmt::Debug + Clone + PartialEq + Eq,
 {
-    // we actually impl<T, R> TryFrom<R> for Map<T> because there's a
-    // coherence conflict with the stdlib blanket impl
-    //
-    //   impl<T, U> std::convert::TryFrom<U> for T where U: std::convert::Into<T>;
-    //
-    // Because there's a chance that R also implements Into<Map<T>>, we can't do it.
-    //
-    // That doesn't stop us from doing it here, and implementing the official trait for
-    // a few concrete types
+    /// Try to convert the contents of a reader into a map.
+    ///
+    /// We don't actually `impl<T, R> TryFrom<R> for Map<T>` because there's a
+    /// coherence conflict with the stdlib blanket impl
+    ///
+    /// ```rust,ignore
+    /// impl<T, U> std::convert::TryFrom<U> for T where U: std::convert::Into<T>;
+    /// ```
+    ///
+    /// Because there's a chance that `R` also implements `Into<Map<T>>`, we can't do it.
+    ///
+    /// That doesn't stop us from doing it here, and implementing the official trait for
+    /// a few concrete types
     #[allow(clippy::try_err)]
     fn try_from<R>(input: R) -> Result<Self, MapConversionErr<T>>
     where
@@ -547,18 +313,18 @@ where
     }
 }
 
-impl<T: Clone> Index<(usize, usize)> for Map<T> {
+impl<T> Index<(usize, usize)> for Map<T> {
     type Output = T;
 
     fn index(&self, (x, y): (usize, usize)) -> &T {
-        self.tiles.index(x + (y * self.width))
+        self.tiles.index(self.point2index(x, y))
     }
 }
 
-impl<T: Clone> Index<Point> for Map<T> {
+impl<T> Index<Point> for Map<T> {
     type Output = T;
 
-    /// Panics if point.x or point.y < 0
+    /// Panics if `point.x < 0 || point.y < 0`
     fn index(&self, point: Point) -> &T {
         assert!(
             point.x >= 0 && point.y >= 0,
@@ -568,14 +334,14 @@ impl<T: Clone> Index<Point> for Map<T> {
     }
 }
 
-impl<T: Clone> IndexMut<(usize, usize)> for Map<T> {
+impl<T> IndexMut<(usize, usize)> for Map<T> {
     fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut T {
-        self.tiles.index_mut(x + (y * self.width))
+        self.tiles.index_mut(self.point2index(x, y))
     }
 }
 
-impl<T: Clone> IndexMut<Point> for Map<T> {
-    /// Panics if point.x or point.y < 0
+impl<T> IndexMut<Point> for Map<T> {
+    /// Panics if `point.x < 0 || point.y < 0`
     fn index_mut(&mut self, point: Point) -> &mut T {
         assert!(
             point.x >= 0 && point.y >= 0,
@@ -585,61 +351,15 @@ impl<T: Clone> IndexMut<Point> for Map<T> {
     }
 }
 
-impl<T: Clone + Into<char>> fmt::Display for Map<T> {
+impl<T: fmt::Display> fmt::Display for Map<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for y in (0..self.height).rev() {
             for x in 0..self.width {
-                write!(f, "{}", self[(x, y)].clone().into())?;
+                self.index((x, y)).fmt(f)?;
             }
             writeln!(f)?;
         }
         Ok(())
-    }
-}
-
-impl<T: Clone> Map<T> {
-    pub fn for_each<F>(&self, visit: F)
-    where
-        F: FnMut(&T),
-    {
-        self.tiles.iter().for_each(visit);
-    }
-
-    pub fn for_each_mut<F>(&mut self, update: F)
-    where
-        F: FnMut(&mut T),
-    {
-        self.tiles.iter_mut().for_each(update);
-    }
-
-    pub fn for_each_point<F>(&self, mut visit: F)
-    where
-        F: FnMut(&T, Point),
-    {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                visit(self.index((x, y)), (x, y).into());
-            }
-        }
-    }
-
-    pub fn for_each_point_mut<F>(&mut self, mut update: F)
-    where
-        F: FnMut(&mut T, Point),
-    {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                update(self.index_mut((x, y)), (x, y).into());
-            }
-        }
-    }
-
-    pub fn in_bounds(&self, point: Point) -> bool {
-        use std::convert::TryInto;
-        point.x >= 0
-            && point.y >= 0
-            && point.x < self.width.try_into().unwrap_or(i32::MAX)
-            && point.y < self.height.try_into().unwrap_or(i32::MAX)
     }
 }
 
