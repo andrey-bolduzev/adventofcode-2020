@@ -1,25 +1,18 @@
-use std::fs::File;
-use std::io::prelude::*;
-use std::io::BufReader;
 use std::path::Path;
 use std::str::FromStr;
+
+use std::io::BufRead;
 
 pub fn parse<T>(path: &Path) -> std::io::Result<impl Iterator<Item = T>>
 where
     T: FromStr,
+    T: std::fmt::Debug,
+    T::Err: std::fmt::Debug,
 {
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
-    let mut buf = String::new();
-    Ok(std::iter::from_fn(move || {
-        buf.clear();
-        reader
-            .read_line(&mut buf)
-            .map_err(|_| ())
-            .and_then(|_| T::from_str(buf.trim()).map_err(|_| ()))
-            .ok()
-    })
-    .fuse())
+    let file = std::fs::File::open(&path)?;
+    Ok(std::io::BufReader::new(file)
+        .lines()
+        .map(|line| T::from_str(&line.unwrap()).unwrap()))
 }
 
 /// adaptor which plugs into parse, splitting comma-separated items from the line
