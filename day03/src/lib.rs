@@ -39,7 +39,7 @@ fn traverse_slope(lines: &[String], delta_x: i32, delta_y: i32) -> usize {
         if current.y >= LAST_LINE_INDEX {
             break;
         }
-        current = current + Point::new(delta_x, delta_y);
+        current += Point::new(delta_x, delta_y);
         trace.push(current);
     }
 
