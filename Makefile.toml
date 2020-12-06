@@ -1,0 +1,40 @@
+[tasks.run-all]
+workspace = false
+dependencies = [
+    "run-day1",
+    "run-day2",
+    "run-day3",
+    "run-day4",
+    "run-day5",
+    "run-day6",
+]
+
+[tasks.run-day1]
+workspace = false
+command = "cargo"
+args = ["run", "-p", "day01", "--", "--part2"]
+
+[tasks.run-day2]
+workspace = false
+command = "cargo"
+args = ["run", "-p", "day02", "--", "--part2"]
+
+[tasks.run-day3]
+workspace = false
+command = "cargo"
+args = ["run", "-p", "day03", "--", "--part2"]
+
+[tasks.run-day4]
+workspace = false
+command = "cargo"
+args = ["run", "-p", "day04", "--", "--part2"]
+
+[tasks.run-day5]
+workspace = false
+command = "cargo"
+args = ["run", "-p", "day05", "--", "--part2"]
+
+[tasks.run-day6]
+workspace = false
+command = "cargo"
+args = ["run", "-p", "day06", "--", "--part2"]
