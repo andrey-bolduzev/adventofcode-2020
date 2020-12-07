@@ -432,7 +432,10 @@ dependencies = [
  "aoc2020",
  "color-eyre",
  "itertools",
+ "maplit",
  "parse-display",
+ "regex",
+ "scan_fmt",
  "structopt",
  "thiserror",
 ]
@@ -1457,6 +1460,15 @@ name = "ryu"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
+
+[[package]]
+name = "scan_fmt"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "248286eec0f55678879ef1caec3d76276643ebcb5460d8cb6e732ef40f50aabe"
+dependencies = [
+ "regex",
+]
 
 [[package]]
 name = "schannel"
