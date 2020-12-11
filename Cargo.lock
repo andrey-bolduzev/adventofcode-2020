@@ -478,6 +478,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "day11"
+version = "0.1.0"
+dependencies = [
+ "aoc2020",
+ "color-eyre",
+ "grid",
+ "itertools",
+ "parse-display",
+ "structopt",
+ "thiserror",
+]
+
+[[package]]
 name = "dirs"
 version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -682,6 +695,12 @@ name = "gimli"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6503fe142514ca4799d4c26297c4248239fe8838d827db6bd6065c6ed29a6ce"
+
+[[package]]
+name = "grid"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4e29f0e1bb805d91745d2c5efb6e472cb18c7cb4dcd0c1f9de1997857737304"
 
 [[package]]
 name = "h2"
