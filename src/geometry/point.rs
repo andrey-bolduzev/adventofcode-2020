@@ -39,6 +39,12 @@ impl From<(usize, usize)> for Point {
     }
 }
 
+impl From<(i32, i32)> for Point {
+    fn from((x, y): (i32, i32)) -> Self {
+        Self::new(x, y)
+    }
+}
+
 impl AddAssign for Point {
     fn add_assign(&mut self, other: Point) {
         self.x += other.x;
