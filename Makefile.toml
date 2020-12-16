@@ -14,6 +14,9 @@ dependencies = [
     "run-day11",
     "run-day12",
     "run-day13",
+    "run-day14",
+    "run-day15",
+    "run-day16",
 ]
 
 [tasks.run-day1]
@@ -80,3 +83,18 @@ args = ["run", "-p", "day12", "--", "--part2"]
 workspace = false
 command = "cargo"
 args = ["run", "-p", "day13", "--", "--part2"]
+
+[tasks.run-day14]
+workspace = false
+command = "cargo"
+args = ["run", "-p", "day14", "--", "--part2"]
+
+[tasks.run-day15]
+workspace = false
+command = "cargo"
+args = ["run", "-p", "day15", "--", "--part2"]
+
+[tasks.run-day16]
+workspace = false
+command = "cargo"
+args = ["run", "-p", "day16", "--", "--part2"]
